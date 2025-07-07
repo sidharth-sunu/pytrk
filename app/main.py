@@ -2,6 +2,7 @@ import os
 import sys
 import hashlib
 import zlib
+import time 
 
 def init():
     os.makedirs(".pytrk/objects",exist_ok=True)
@@ -10,17 +11,20 @@ def init():
         f.write("ref: refs/heads/main\n")
     print("initialiszed pytrk repo")
 
+def hash_dir_create(data):
+    hash_data = hashlib.sha1(data).hexdigest()
+    data = zlib.compress(data)
+    os.makedirs(f".pytrk/objects/{hash_data[:2]}",exist_ok=True)
+    with open(f".pytrk/objects/{hash_data[:2]}/{hash_data[2:]}","wb") as f:
+        f.write(data)       
+    return(hash_data) 
 
 def hash_object(filename):
     with open(filename,"rb") as f:
         # print(f.read())
         data = f.read()
         data = f"blob {len(data)}\0".encode()+data
-        hash_data = hashlib.sha1(data).hexdigest()
-        data = zlib.compress(data)
-        os.makedirs(f".pytrk/objects/{hash_data[:2]}",exist_ok=True)
-        with open(f".pytrk/objects/{hash_data[:2]}/{hash_data[2:]}","wb") as f:
-            f.write(data)       
+        hash_data = hash_dir_create(data)     
     return(hash_data) 
 
 def cat_file(hash_data):
@@ -37,24 +41,66 @@ def add(filename):
         f.write(data)
     print("added file to index")
 
+def write_tree():
+    entries = []
+    with open(".pytrk/index.txt") as f:
+        data = f.read().split('\n')
+        for line in data:
+            if len(line)>1:
+                line = line.split(' ',1)
+                entry = f"100644 {line[1]}".encode()+b"\x00"+bytes.fromhex(line[0])
+                entries.append(entry)
+    tree_content = b"".join(entries)
+    header = f"tree {len(tree_content)}\x00".encode()
+    tree_content = header+tree_content
+    hash_data = hash_dir_create(tree_content)
+    return(hash_data)
+
+def commit(message):
+    tree_hash = write_tree()
+    timestamp = int(time.time())
+    commit_body = f"""tree {tree_hash}
+author Sidh <you@example.com> {timestamp}
+committer Sidh <you@example.com> {timestamp}
+
+{message}
+""".encode()
+    header = f"commit {len(commit_body)}\x00".encode()
+    commit_data = header+commit_body
+    commit_hash = hash_dir_create(commit_data)
+    print(f"committed: {commit_hash}")
+    with open(".pytrk/HEAD") as f:
+        ref = f.read().strip().split(" ")[1]
+        print(ref)
+    with open(f".pytrk/{ref}","w") as f:
+        f.write(commit_hash+"\n")
+
 def main():
     if len(sys.argv)<2:
         print("no command provided")
         return
     
     command = sys.argv[1]
-    fname = sys.argv[2]
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    fpath = os.path.join(script_dir,fname)
-    print(command,fname,fpath)
     if command == "init":
         init()
     elif command == "hash-object":
+        fname = sys.argv[2]
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        fpath = os.path.join(script_dir,fname)
         hash_object(fpath)
     elif command == "cat-file":
+        fname = sys.argv[2]
         cat_file(fname)
     elif command == "add":
+        fname = sys.argv[2]
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        fpath = os.path.join(script_dir,fname)
         add(fpath)
+    elif command == "write-tree":
+        write_tree()
+    elif command == "commit":
+        message = sys.argv[2]
+        commit(message)
     else:
         print("unknown command")
 
