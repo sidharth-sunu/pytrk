@@ -59,21 +59,78 @@ def write_tree():
 def commit(message):
     tree_hash = write_tree()
     timestamp = int(time.time())
-    commit_body = f"""tree {tree_hash}
-author Sidh <you@example.com> {timestamp}
-committer Sidh <you@example.com> {timestamp}
-
-{message}
-""".encode()
+    with open(".pytrk/HEAD") as f:
+        ref = f.read().strip().split(" ")[1]
+    ref_path = os.path.join(".pytrk",ref)
+    print(ref_path)
+    parent = None
+    if os.path.exists(ref_path):
+        with open(ref_path) as f:
+            parent = f.read().strip()
+            print(parent)
+    lines = [
+        f"tree {tree_hash}",
+    ]
+    if parent:
+        lines.append(f"parent {parent}")
+    lines.extend([
+        f"author Sidh <you@example.com> {timestamp}",
+        f"committer Sidh <you@example.com> {timestamp}",
+        "",
+        message
+    ])
+    commit_body = "\n".join(lines).encode()
     header = f"commit {len(commit_body)}\x00".encode()
     commit_data = header+commit_body
     commit_hash = hash_dir_create(commit_data)
     print(f"committed: {commit_hash}")
-    with open(".pytrk/HEAD") as f:
-        ref = f.read().strip().split(" ")[1]
-        print(ref)
+
     with open(f".pytrk/{ref}","w") as f:
         f.write(commit_hash+"\n")
+
+def log():
+    with open(".pytrk/HEAD") as f:
+        ref = f.read().strip().split(" ")[1]
+    ref_path = os.path.join(".pytrk",ref)
+    with open(ref_path) as f:
+        current_hash = f.read().strip()
+        print(current_hash)
+    while current_hash:
+        path = f".pytrk/objects/{current_hash[:2]}/{current_hash[2:]}"
+        with open(path,"rb") as f:
+            raw = f.read()
+        decompressed  = zlib.decompress(raw)
+        null_index = decompressed.index(b'\x00')
+        commit_txt = decompressed[null_index+1:].decode()
+        lines = commit_txt.split("\n")
+        tree = ""
+        parent = None
+        author = ""
+        messages = []
+        reading_msgs = False
+        for line in lines:
+            line = line.strip()
+            if reading_msgs:
+                messages.append(line)
+            elif line.startswith("tree "):
+                tree = line[5:]
+            elif line.startswith("parent "):
+                parent = line[7:]
+            elif line.startswith("author "):
+                author = line
+            elif line == "":
+                reading_msgs = True
+        print(f"commit {current_hash}")
+        print(author)
+        print()
+        for line in messages:
+            print(f"    {line}")
+        print()
+        if parent:
+            current_hash = parent
+        else:
+            break
+
 
 def main():
     if len(sys.argv)<2:
@@ -101,6 +158,8 @@ def main():
     elif command == "commit":
         message = sys.argv[2]
         commit(message)
+    elif command == "log":
+        log()
     else:
         print("unknown command")
 
