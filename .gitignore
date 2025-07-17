@@ -1,0 +1,6 @@
+.pytrk/
+*.pyc
+__pycache__/
+.env
+.venv
+pytrk.egg-info/
