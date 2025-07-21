@@ -4,7 +4,7 @@
 
 Inspired by the internals of Git, `pytrk` provides core version control features such as commits, branches, diffs, logs, and checkouts, using a custom object database and reference system.
 
-This is a side project I built to deeply understand how Git works internally. If you're interested in learning how Git functions under the hood, I'll be linking my blog here soon — it will walk you through the codebase and help you build something like this yourself.
+This is a side project I built to deeply understand how Git works internally. If you're interested in learning how Git functions under the hood, Check out my blog: https://gitinternals.hashnode.dev/how-does-git-work-internally — it will walk you through the codebase and help you build something like this yourself.
 
 ---
 
